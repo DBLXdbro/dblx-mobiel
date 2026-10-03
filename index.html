@@ -2,7 +2,7 @@
 <html lang="nl">
 <head>
 <meta charset="utf-8">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-WiGMQcmDOIDkqQR3rMw4PDL7XqZDkxSxzalRPsFSBlc='; style-src 'sha256-56WuVGchgKeCiloe3EDk8xro6r7zBKAMatAt/9JU7Lg='; connect-src 'self' https://graph.microsoft.com https://login.microsoftonline.com; img-src 'self' data:; manifest-src 'self'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-jOEIpgKTllBTe2klIct60wiBHszCMjKV0pf5X94a5Xo='; style-src 'sha256-56WuVGchgKeCiloe3EDk8xro6r7zBKAMatAt/9JU7Lg='; connect-src 'self' https://graph.microsoft.com https://login.microsoftonline.com; img-src 'self' data:; manifest-src 'self'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="referrer" content="no-referrer">
 <meta name="robots" content="noindex,nofollow">
@@ -203,7 +203,7 @@ a { color: var(--paars-licht); }
   <div class="voet">
     <span id="wie"></span>
     <button class="knop stil" id="btnAfmelden" type="button">Afmelden</button>
-    <span>DB/LX Mobiel 1.0.1 · alleen lezen · rechtstreeks uit Microsoft 365</span>
+    <span>DB/LX Mobiel 1.0.2 · alleen lezen · rechtstreeks uit Microsoft 365</span>
   </div>
 </div>
 
@@ -224,7 +224,7 @@ a { color: var(--paars-licht); }
 <script>
 (function () {
 'use strict';
-/* DB/LX Mobiel 1.0.1 - de Werkplek op de telefoon, alleen lezen.
+/* DB/LX Mobiel 1.0.2 - de Werkplek op de telefoon, alleen lezen.
    Geen server en geen tussenpersoon: aanmelding rechtstreeks bij Microsoft (autorisatiecode met PKCE, enkel de eigen tenant),
    gegevens rechtstreeks uit Microsoft Graph naar dit toestel. Er wordt niets gewijzigd, verzonden of gewist. */
 if (window.top !== window.self) { document.body.textContent = ''; return; }   // nooit in een kader van een andere pagina
@@ -571,7 +571,8 @@ function laadAlles() {
     const mislukt = [];
     const per = await Promise.all(lijsten.map(async l => {
       try {
-        return (await alle('/me/todo/lists/' + encodeURIComponent(l.id) + '/tasks' + vraag({ $filter: "status ne 'completed'", $select: 'id,title,status,importance,dueDateTime', $top: 100 }), { prefer: 'outlook.timezone="' + TZ + '"' }, 3))
+        /* Geen $select: To Do weigert een keuze van velden waarin de titel staat (400 invalidRequest, vastgesteld op 03.10.2026) en negeert elke andere keuze. */
+        return (await alle('/me/todo/lists/' + encodeURIComponent(l.id) + '/tasks' + vraag({ $filter: "status ne 'completed'", $top: 100 }), { prefer: 'outlook.timezone="' + TZ + '"' }, 3))
           .map(t => ({ id: String(t.id), titel: t.title || '(zonder titel)', lijst: l.displayName || '', vervalt: datumVan(t.dueDateTime), belangrijk: t.importance === 'high' }));
       } catch (e) { if (e && e.soort === 'afgemeld') throw e; mislukt.push(e); return []; }
     }));
