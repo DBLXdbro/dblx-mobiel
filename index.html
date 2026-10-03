@@ -2,7 +2,7 @@
 <html lang="nl">
 <head>
 <meta charset="utf-8">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-TtG/3KAJH2OwTO9ThpKnvVhENRNeg4Uzg2a8AAFlsqQ='; style-src 'sha256-56WuVGchgKeCiloe3EDk8xro6r7zBKAMatAt/9JU7Lg='; connect-src 'self' https://graph.microsoft.com https://login.microsoftonline.com; img-src 'self' data:; manifest-src 'self'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-WiGMQcmDOIDkqQR3rMw4PDL7XqZDkxSxzalRPsFSBlc='; style-src 'sha256-56WuVGchgKeCiloe3EDk8xro6r7zBKAMatAt/9JU7Lg='; connect-src 'self' https://graph.microsoft.com https://login.microsoftonline.com; img-src 'self' data:; manifest-src 'self'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="referrer" content="no-referrer">
 <meta name="robots" content="noindex,nofollow">
@@ -203,7 +203,7 @@ a { color: var(--paars-licht); }
   <div class="voet">
     <span id="wie"></span>
     <button class="knop stil" id="btnAfmelden" type="button">Afmelden</button>
-    <span>DB/LX Mobiel 1.0 · alleen lezen · rechtstreeks uit Microsoft 365</span>
+    <span>DB/LX Mobiel 1.0.1 · alleen lezen · rechtstreeks uit Microsoft 365</span>
   </div>
 </div>
 
@@ -224,7 +224,7 @@ a { color: var(--paars-licht); }
 <script>
 (function () {
 'use strict';
-/* DB/LX Mobiel 1.0 - de Werkplek op de telefoon, alleen lezen.
+/* DB/LX Mobiel 1.0.1 - de Werkplek op de telefoon, alleen lezen.
    Geen server en geen tussenpersoon: aanmelding rechtstreeks bij Microsoft (autorisatiecode met PKCE, enkel de eigen tenant),
    gegevens rechtstreeks uit Microsoft Graph naar dit toestel. Er wordt niets gewijzigd, verzonden of gewist. */
 if (window.top !== window.self) { document.body.textContent = ''; return; }   // nooit in een kader van een andere pagina
@@ -347,6 +347,11 @@ function meldAf() {
 }
 
 /* ---- Microsoft Graph: enkel lezen ---- */
+/* Ten hoogste drie aanvragen tegelijk: Outlook laat per postvak en per toepassing vier gelijktijdige aanvragen toe. */
+const MAX_GELIJK = 3;
+let bezig = 0; const wachtrij = [];
+function beurt() { if (bezig < MAX_GELIJK) { bezig++; return Promise.resolve(); } return new Promise(ok => wachtrij.push(ok)); }
+function beurtKlaar() { const volgende = wachtrij.shift(); if (volgende) volgende(); else bezig--; }
 async function graph(pad, opties) {
   const url = pad.startsWith('https://') ? pad : GRAPH + pad;
   if (!url.startsWith(GRAPH + '/')) { const f = new Error('vreemd adres'); f.soort = 'storing'; throw f; }
@@ -354,11 +359,16 @@ async function graph(pad, opties) {
     const bewijs = await geldigBewijs();
     const kop = { Authorization: 'Bearer ' + bewijs, Accept: 'application/json' };
     if (opties && opties.prefer) kop.Prefer = opties.prefer;
-    let r;
-    try { r = await fetch(url, { method: 'GET', headers: kop, cache: 'no-store' }); } catch (e) { const f = new Error('net'); f.soort = 'net'; throw f; }
+    let r, j = null;
+    await beurt();
+    try { r = await fetch(url, { method: 'GET', headers: kop, cache: 'no-store' }); j = await r.json().catch(() => null); }
+    catch (e) { const f = new Error('net'); f.soort = 'net'; throw f; }
+    finally { beurtKlaar(); }
     if (r.status === 401 && poging === 0) { if (sessie && sessie.access_token === bewijs) await vernieuwBewijs(); continue; }
-    if (r.ok) return r.json();
+    if (r.ok && j) return j;
     const f = new Error('graph ' + r.status); f.status = r.status;
+    /* Enkel de status en de korte code van Microsoft worden bewaard, nooit de tekst van de foutmelding. */
+    const code = j && j.error && j.error.code; if (typeof code === 'string' && /^[A-Za-z0-9_.]{1,48}$/.test(code)) f.code = code;
     f.soort = r.status === 401 ? 'afgemeld' : r.status === 403 ? 'verbod' : r.status === 404 ? 'nietgevonden' : r.status === 429 ? 'druk' : 'storing';
     if (r.status === 429 || r.status === 503) { const w = parseInt(r.headers.get('Retry-After') || '', 10); if (w > 0) f.wacht = w; }
     throw f;
@@ -370,13 +380,19 @@ async function alle(pad, opties, maxBladen) {
   for (let i = 0; volgende && i < (maxBladen || 6); i++) { const j = await graph(volgende, opties); uit = uit.concat(j.value || []); volgende = j['@odata.nextLink'] || null; }
   return uit;
 }
+/* Wat Microsoft antwoordde, in een vorm die bij een storing kan worden doorgegeven: status en korte code, of de soort interne fout. */
+function foutCode(e) {
+  if (e && e.status) return ' (code ' + e.status + (e.code ? ' \u00b7 ' + e.code : '') + ')';
+  if (e && !e.soort) return ' (interne fout: ' + String(e.name || 'onbekend').replace(/[^A-Za-z]/g, '').slice(0, 24) + ')';
+  return '';
+}
 function foutTekst(e) {
   switch (e && e.soort) {
-    case 'verbod': return 'Microsoft 365 geeft deze pagina geen toestemming voor dit onderdeel.';
+    case 'verbod': return 'Microsoft 365 geeft deze pagina geen toestemming voor dit onderdeel.' + foutCode(e);
     case 'druk': return 'Microsoft 365 vraagt om even te wachten' + (e.wacht ? ' (' + e.wacht + ' seconden)' : '') + '. Tik daarna op Vernieuwen.';
-    case 'nietgevonden': return 'Dit onderdeel is niet gevonden in Microsoft 365.';
+    case 'nietgevonden': return 'Dit onderdeel is niet gevonden in Microsoft 365.' + foutCode(e);
     case 'net': return 'Geen verbinding met Microsoft 365. Controleer uw internetverbinding en tik op Vernieuwen.';
-    default: return 'Microsoft 365 is tijdelijk niet bereikbaar. Wat al geladen was, blijft staan; tik op Vernieuwen om het opnieuw te proberen.';
+    default: return 'Microsoft 365 is tijdelijk niet bereikbaar. Wat al geladen was, blijft staan; tik op Vernieuwen om het opnieuw te proberen.' + foutCode(e);
   }
 }
 
@@ -385,7 +401,7 @@ const nieuwDeel = () => ({ items: null, fout: null, op: null });
 const st = { tab: 'vandaag', map: 'in', open: null, agenda: nieuwDeel(), inbox: nieuwDeel(), sent: nieuwDeel(), taken: nieuwDeel(), dossiers: nieuwDeel(), ongelezen: null, mailZoek: null, dossier: null, filter: '', ik: null };
 function favorieten() { try { const f = JSON.parse(lees(K_FAV) || '[]'); return Array.isArray(f) ? f.filter(c => typeof c === 'string') : []; } catch (e) { return []; } }
 const versRegel = d => d.op ? 'bijgewerkt om ' + uurVan(d.op) : '';
-const notitie = d => d.fout ? '<div class="melding let">' + esc(foutTekst(d.fout)) + '</div>' : '';
+const notitie = d => d.fout ? '<div class="melding let">' + esc(foutTekst(d.fout)) + '</div>' : d.deels ? '<div class="melding let">' + esc(d.deels) + '</div>' : '';
 
 /* ---- modellen ---- */
 const naamVan = x => (x && x.emailAddress && (x.emailAddress.name || x.emailAddress.address)) || '';
@@ -552,8 +568,16 @@ function laadAlles() {
   laad(st.sent, async () => ((await graph('/me/mailFolders/sentitems/messages' + vraag({ $select: MAILVELDEN, $top: 25, $orderby: 'sentDateTime desc' }))).value || []).map(mailModel));
   laad(st.taken, async () => {
     const lijsten = await alle('/me/todo/lists' + vraag({ $top: 50 }), null, 2);
-    const per = await Promise.all(lijsten.map(async l => (await alle('/me/todo/lists/' + encodeURIComponent(l.id) + '/tasks' + vraag({ $filter: "status ne 'completed'", $select: 'id,title,status,importance,dueDateTime', $top: 100 }), { prefer: 'outlook.timezone="' + TZ + '"' }, 3))
-      .map(t => ({ id: String(t.id), titel: t.title || '(zonder titel)', lijst: l.displayName || '', vervalt: datumVan(t.dueDateTime), belangrijk: t.importance === 'high' }))));
+    const mislukt = [];
+    const per = await Promise.all(lijsten.map(async l => {
+      try {
+        return (await alle('/me/todo/lists/' + encodeURIComponent(l.id) + '/tasks' + vraag({ $filter: "status ne 'completed'", $select: 'id,title,status,importance,dueDateTime', $top: 100 }), { prefer: 'outlook.timezone="' + TZ + '"' }, 3))
+          .map(t => ({ id: String(t.id), titel: t.title || '(zonder titel)', lijst: l.displayName || '', vervalt: datumVan(t.dueDateTime), belangrijk: t.importance === 'high' }));
+      } catch (e) { if (e && e.soort === 'afgemeld') throw e; mislukt.push(e); return []; }
+    }));
+    /* Faalt elke lijst, dan is het onderdeel mislukt; faalt een deel, dan blijven de gelezen taken staan met een melding erbij. */
+    if (lijsten.length && mislukt.length === lijsten.length) throw mislukt[0];
+    st.taken.deels = mislukt.length ? mislukt.length + ' van de ' + lijsten.length + ' takenlijsten ' + (mislukt.length === 1 ? 'kon' : 'konden') + ' niet worden gelezen' + foutCode(mislukt[0]) + '. De taken hieronder zijn dus niet volledig; tik op Vernieuwen om het opnieuw te proberen.' : null;
     return [].concat.apply([], per);
   });
   laad(st.dossiers, async () => {
