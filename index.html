@@ -1,0 +1,659 @@
+<!doctype html>
+<html lang="nl">
+<head>
+<meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-TtG/3KAJH2OwTO9ThpKnvVhENRNeg4Uzg2a8AAFlsqQ='; style-src 'sha256-56WuVGchgKeCiloe3EDk8xro6r7zBKAMatAt/9JU7Lg='; connect-src 'self' https://graph.microsoft.com https://login.microsoftonline.com; img-src 'self' data:; manifest-src 'self'; base-uri 'none'; form-action 'none'">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="referrer" content="no-referrer">
+<meta name="robots" content="noindex,nofollow">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="DB/LX">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#0b0a12">
+<link rel="apple-touch-icon" href="icon-180.png">
+<link rel="manifest" href="manifest.webmanifest">
+<title>DB/LX</title>
+<style>
+/* Opzet: de Werkplek op telefoonformaat, uiterlijk van kleurvoorstel 6. Vaste kop, vijf onderdelen onderaan,
+   halfdoorschijnende kaarten over het vaste achtergrondbeeld van dat voorstel (achtergrond.jpg, sluier inbegrepen). */
+:root {
+  color-scheme: dark;
+  --grond: #1b1622;
+  --kaart: rgba(10, 14, 23, .45);
+  --lijst: rgba(16, 21, 31, .86);
+  --kaart-rand: rgba(255, 255, 255, .16);
+  --lijn: rgba(255, 255, 255, .08);
+  --balk: rgba(3, 5, 12, .72);
+  --rij: rgba(255, 255, 255, .035);
+  --tekst: #ffffff;
+  --bijtekst: #b9c2d6;
+  --stil: #8391ae;
+  --paars: #6b4fa8;
+  --paars-licht: #b6a3e6;
+  --paars-vlak: rgba(107, 79, 168, .26);
+  --goud: #d1a54a;
+  --goud-vlak: rgba(209, 165, 74, .24);
+  --oranje: #f0a33a;
+  --font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+}
+*, *::before, *::after { box-sizing: border-box; }
+[hidden] { display: none !important; }
+html, body { height: 100%; }
+body {
+  margin: 0; background: var(--grond); color: var(--tekst); font-family: var(--font); font-size: 15px; line-height: 1.4;
+  -webkit-text-size-adjust: 100%; -webkit-tap-highlight-color: transparent;
+}
+/* Het achtergrondbeeld staat vast achter de pagina (een eigen laag: background-attachment: fixed werkt niet op de iPhone). */
+body::before { content: ""; position: fixed; inset: 0; z-index: -1; background: var(--grond) url(achtergrond.jpg) center / cover no-repeat; }
+button, input { font: inherit; color: inherit; }
+a { color: var(--paars-licht); }
+:focus-visible { outline: 2px solid var(--goud); outline-offset: 2px; }
+
+.app { max-width: 620px; margin: 0 auto; padding: 0 16px calc(92px + env(safe-area-inset-bottom, 0px)); min-height: 100%; }
+.kop {
+  position: sticky; top: 0; z-index: 5; display: flex; align-items: center; gap: 12px; margin: 0 -16px;
+  padding: calc(10px + env(safe-area-inset-top, 0px)) 16px 10px; background: var(--balk);
+  -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px); border-bottom: 2px solid var(--paars);
+}
+.merk { font-weight: 800; font-size: 22px; letter-spacing: -.01em; }
+.kop h1 { margin: 0; font-size: 15px; font-weight: 600; color: var(--bijtekst); flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.knop {
+  border: 1px solid var(--paars); background: var(--paars-vlak); color: var(--tekst); border-radius: 8px; padding: 9px 14px; min-height: 42px;
+  font-size: 14px; font-weight: 600; cursor: pointer; text-decoration: none; display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+}
+.knop.goud { border-color: var(--goud); background: var(--goud-vlak); }
+.knop.stil { border-color: rgba(255, 255, 255, .16); background: transparent; color: #dfe5f1; font-weight: 500; }
+.knop.breed { width: 100%; min-height: 50px; font-size: 16px; }
+.knop:disabled { opacity: .5; cursor: default; }
+.ondertitel { color: var(--bijtekst); font-size: 13px; margin: 12px 0 0; }
+
+.melding { margin: 12px 0 0; padding: 12px 14px; border-radius: 10px; background: var(--lijst); border: 1px solid var(--kaart-rand); color: var(--bijtekst); font-size: 14px; }
+.melding.let { border-color: var(--oranje); color: var(--tekst); }
+.vers { color: var(--stil); font-size: 12px; margin: 12px 0 8px; display: flex; justify-content: space-between; gap: 12px; }
+
+.tegels { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 14px 0 0; }
+.tegel { background: var(--kaart); border: 1px solid var(--kaart-rand); border-radius: 12px; padding: 12px 14px; text-align: left; cursor: pointer; min-width: 0; }
+.tegel .naam { display: block; font-size: 11px; letter-spacing: .06em; text-transform: uppercase; color: var(--bijtekst); }
+.tegel .getal { display: block; font-size: 26px; font-weight: 700; font-variant-numeric: tabular-nums; margin-top: 2px; }
+.tegel .uitleg { display: block; font-size: 12px; color: var(--stil); margin-top: 2px; }
+
+.blok { margin: 18px 0 0; }
+.blok > h2 { margin: 0 0 8px; font-size: 12px; font-weight: 700; letter-spacing: .09em; text-transform: uppercase; color: var(--paars-licht); }
+.lijst { list-style: none; margin: 0; padding: 0; background: var(--lijst); border: 1px solid var(--kaart-rand); border-radius: 12px; overflow: hidden; }
+.lijst > li { border-top: 1px solid var(--lijn); }
+.lijst > li:first-child { border-top: 0; }
+.lijst > li:nth-child(even) { background: var(--rij); }
+.rij { display: grid; grid-template-columns: auto 1fr auto; gap: 4px 12px; align-items: baseline; padding: 12px 14px; width: 100%; text-align: left; background: none; border: 0; cursor: pointer; }
+.rij.vast { cursor: default; }
+.rij .uur { font-variant-numeric: tabular-nums; color: var(--goud); font-weight: 600; font-size: 13px; min-width: 46px; }
+.rij .titel { min-width: 0; font-weight: 600; overflow-wrap: anywhere; }
+.rij .neven { color: var(--stil); font-size: 12px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.rij .onder { grid-column: 2 / -1; color: var(--bijtekst); font-size: 13px; min-width: 0; overflow-wrap: anywhere; }
+.rij .onder.zacht { color: var(--stil); }
+.rij .onder.kort { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.rij.smal .uur { min-width: 14px; }
+.rij.laat .titel, .rij.laat .neven { color: var(--goud); }
+.stip { width: 8px; height: 8px; border-radius: 50%; background: var(--paars-licht); display: inline-block; }
+.stip.uit { background: transparent; }
+.ster { color: var(--goud); }
+.uitklap { padding: 0 14px 14px; display: flex; flex-wrap: wrap; gap: 8px; }
+.uitklap.los { padding: 12px 0 0; }
+.geen { padding: 18px 14px; color: var(--stil); font-size: 14px; }
+.voetnoot { color: var(--stil); font-size: 12px; margin: 8px 2px 0; }
+
+.zoek { display: flex; gap: 8px; margin: 14px 0 0; }
+.zoek input { flex: 1; min-width: 0; background: var(--lijst); border: 1px solid var(--kaart-rand); border-radius: 8px; padding: 10px 12px; min-height: 42px; font-size: 16px; }
+.zoek input::placeholder { color: var(--stil); }
+.keuze { display: flex; gap: 8px; margin: 14px 0 0; }
+.keuze .knop { flex: 1; }
+.keuze .knop[aria-pressed="true"] { background: var(--paars); border-color: var(--paars); }
+.kruimel { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 14px 0 10px; color: var(--bijtekst); font-size: 13px; }
+.kruimel b { color: var(--tekst); overflow-wrap: anywhere; flex: 1; min-width: 0; }
+.gereedschap { display: flex; flex-wrap: wrap; gap: 8px; }
+.voet { margin: 26px 0 0; color: var(--stil); font-size: 11px; text-align: center; display: grid; gap: 10px; justify-items: center; }
+
+.tabs {
+  position: fixed; left: 0; right: 0; bottom: 0; z-index: 6; display: flex; justify-content: center;
+  background: rgba(3, 5, 12, .90); -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px); border-top: 1px solid var(--lijn);
+  padding: 4px 4px calc(4px + env(safe-area-inset-bottom, 0px));
+}
+.tabs button { flex: 1; max-width: 130px; min-width: 0; background: none; border: 0; border-top: 3px solid transparent; padding: 8px 2px 6px; color: var(--stil); font-size: 11px; font-weight: 600; cursor: pointer; display: grid; justify-items: center; gap: 3px; }
+.tabs button[aria-selected="true"] { color: var(--tekst); border-top-color: var(--paars); }
+.tabs svg { width: 22px; height: 22px; stroke: currentColor; fill: none; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+
+.blad { position: fixed; inset: 0; z-index: 10; background: #04060c; display: flex; flex-direction: column; padding: env(safe-area-inset-top, 0px) 0 env(safe-area-inset-bottom, 0px); }
+.blad header { display: flex; align-items: center; gap: 10px; padding: 12px 16px; border-bottom: 2px solid var(--paars); }
+.blad header h2 { margin: 0; font-size: 15px; flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.blad .inhoud { flex: 1; overflow-y: auto; -webkit-overflow-scrolling: touch; padding: 14px 16px; }
+.blad .meta { color: var(--bijtekst); font-size: 13px; margin: 0 0 12px; display: grid; gap: 2px; overflow-wrap: anywhere; }
+.blad .meta b { color: var(--tekst); font-weight: 600; }
+.blad pre { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; font-family: var(--font); font-size: 15px; line-height: 1.5; color: #e9edf6; }
+.blad .bijlagen { margin: 14px 0 0; padding: 10px 12px; border: 1px solid var(--kaart-rand); border-radius: 10px; color: var(--bijtekst); font-size: 13px; overflow-wrap: anywhere; }
+.blad footer { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; padding: 10px 16px; border-top: 1px solid var(--kaart-rand); }
+
+.aanmeld { min-height: 100%; display: grid; align-content: center; justify-items: center; gap: 14px; padding: calc(24px + env(safe-area-inset-top, 0px)) 24px calc(24px + env(safe-area-inset-bottom, 0px)); text-align: center; max-width: 460px; margin: 0 auto; }
+.aanmeld .merk { font-size: 44px; }
+.aanmeld .sub { margin: 0 0 10px; color: var(--bijtekst); font-size: 16px; }
+.aanmeld .klein { margin: 4px 0 0; color: var(--stil); font-size: 12px; }
+.aanmeld .melding { margin: 0; text-align: left; width: 100%; }
+@media (prefers-reduced-motion: no-preference) { .rij, .knop, .tegel { transition: background-color .15s ease; } }
+</style>
+</head>
+<body>
+
+<div class="aanmeld" id="aanmeldScherm" hidden>
+  <div class="merk">DB/LX</div>
+  <p class="sub">Uw werkplek op de telefoon</p>
+  <div class="melding let" id="aanmeldMelding" hidden></div>
+  <button class="knop goud breed" id="btnAanmelden" type="button">Aanmelden met Microsoft</button>
+  <p class="klein" id="aanmeldUitleg">U meldt zich aan bij Microsoft zelf. Deze pagina krijgt geen wachtwoord te zien en kan enkel lezen: uw mail, agenda, taken en bestanden.</p>
+</div>
+
+<div class="app" id="app" hidden>
+  <div class="kop">
+    <span class="merk">DB/LX</span>
+    <h1 id="kopTitel">Vandaag</h1>
+    <button class="knop goud" id="btnVernieuw" type="button">Vernieuwen</button>
+  </div>
+
+  <section id="tab-vandaag" role="tabpanel">
+    <p class="ondertitel">Overzicht, aandacht en snel naar uw dossiers.</p>
+    <div class="tegels">
+      <button class="tegel" type="button" data-naar="taken"><span class="naam">Openstaande taken</span><span class="getal" id="telTaken">…</span><span class="uitleg">Uit uw takenlijsten</span></button>
+      <button class="tegel" type="button" data-naar="agenda"><span class="naam">Afspraken vandaag</span><span class="getal" id="telAfspraken">…</span><span class="uitleg">Uw Outlook-agenda</span></button>
+      <button class="tegel" type="button" data-naar="dossiers"><span class="naam">Dossiers</span><span class="getal" id="telDossiers">…</span><span class="uitleg">Dossiermappen in OneDrive</span></button>
+      <button class="tegel" type="button" data-naar="mail"><span class="naam">Ongelezen mail</span><span class="getal" id="telOngelezen">…</span><span class="uitleg">Postvak IN</span></button>
+    </div>
+    <div class="blok"><h2>Eerst aandacht</h2><div id="eerstAandacht"></div><p class="voetnoot">Openstaande taken op vervaldatum.</p></div>
+    <div class="blok"><h2>Uw komende afspraken</h2><div id="komendeAfspraken"></div></div>
+    <div class="blok"><h2>Snel naar een dossier</h2><div id="snelDossier"></div><p class="voetnoot">Favorieten eerst. Een ster zet u in het dossier zelf.</p></div>
+    <div class="blok"><h2>Uw gereedschap</h2>
+      <div class="gereedschap">
+        <a class="knop" href="https://to-do.office.com/tasks/" target="_blank" rel="noopener">Microsoft To Do ↗</a>
+        <a class="knop" href="https://outlook.office.com/mail/" target="_blank" rel="noopener">Outlook ↗</a>
+        <a class="knop" href="https://www.office.com/launch/onedrive" target="_blank" rel="noopener">OneDrive ↗</a>
+      </div>
+    </div>
+  </section>
+
+  <section id="tab-mail" role="tabpanel" hidden>
+    <div class="keuze" role="group" aria-label="Map">
+      <button class="knop" id="mapIn" type="button" aria-pressed="true">Postvak IN</button>
+      <button class="knop" id="mapUit" type="button" aria-pressed="false">Verzonden</button>
+      <a class="knop goud" href="mailto:">Nieuwe mail</a>
+    </div>
+    <form class="zoek" id="mailZoek" autocomplete="off">
+      <input id="mailQ" type="search" placeholder="Zoek in al uw mail" aria-label="Zoek in al uw mail" enterkeyhint="search">
+      <button class="knop" type="submit">Zoek</button>
+    </form>
+    <div id="mailInhoud"></div>
+  </section>
+
+  <section id="tab-taken" role="tabpanel" hidden><div id="takenInhoud"></div></section>
+  <section id="tab-agenda" role="tabpanel" hidden><div id="agendaInhoud"></div></section>
+
+  <section id="tab-dossiers" role="tabpanel" hidden>
+    <div class="zoek" id="dosZoek">
+      <input id="dosQ" type="search" placeholder="Zoek een dossier op naam, code of jaar" aria-label="Zoek een dossier op naam, code of jaar" enterkeyhint="search" autocomplete="off">
+    </div>
+    <div id="dosInhoud"></div>
+  </section>
+
+  <div class="voet">
+    <span id="wie"></span>
+    <button class="knop stil" id="btnAfmelden" type="button">Afmelden</button>
+    <span>DB/LX Mobiel 1.0 · alleen lezen · rechtstreeks uit Microsoft 365</span>
+  </div>
+</div>
+
+<nav class="tabs" id="tabs" role="tablist" aria-label="Onderdelen" hidden>
+  <button type="button" role="tab" data-tab="vandaag" aria-selected="true"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 11 12 4l8 7v8a1 1 0 0 1-1 1h-4v-6H9v6H5a1 1 0 0 1-1-1z"/></svg>Vandaag</button>
+  <button type="button" role="tab" data-tab="mail" aria-selected="false"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="6" width="18" height="13" rx="2"/><path d="m4 8 8 6 8-6"/></svg>Mail</button>
+  <button type="button" role="tab" data-tab="taken" aria-selected="false"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="4" width="16" height="16" rx="2"/><path d="m8 12 3 3 5-6"/></svg>Taken</button>
+  <button type="button" role="tab" data-tab="agenda" aria-selected="false"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="5" width="16" height="15" rx="2"/><path d="M4 10h16M9 3v4M15 3v4"/></svg>Agenda</button>
+  <button type="button" role="tab" data-tab="dossiers" aria-selected="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 8a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>Dossiers</button>
+</nav>
+
+<div class="blad" id="blad" hidden role="dialog" aria-modal="true" aria-labelledby="bladTitel">
+  <header><h2 id="bladTitel">Bericht</h2><button class="knop stil" id="bladSluit" type="button">Sluiten</button></header>
+  <div class="inhoud"><div class="meta" id="bladMeta"></div><pre id="bladTekst"></pre><div class="bijlagen" id="bladBijlagen" hidden></div></div>
+  <footer id="bladVoet"></footer>
+</div>
+
+<script>
+(function () {
+'use strict';
+/* DB/LX Mobiel 1.0 - de Werkplek op de telefoon, alleen lezen.
+   Geen server en geen tussenpersoon: aanmelding rechtstreeks bij Microsoft (autorisatiecode met PKCE, enkel de eigen tenant),
+   gegevens rechtstreeks uit Microsoft Graph naar dit toestel. Er wordt niets gewijzigd, verzonden of gewist. */
+if (window.top !== window.self) { document.body.textContent = ''; return; }   // nooit in een kader van een andere pagina
+
+const TENANT = 'dblx.be';
+let CLIENT = '';                // de client-id van de registratie in Microsoft 365; komt uit config.json naast deze pagina
+const RECHTEN = 'openid profile offline_access User.Read Mail.Read Calendars.Read Tasks.Read Files.Read';
+const AUTORITEIT = 'https://login.microsoftonline.com/' + TENANT + '/oauth2/v2.0';
+const GRAPH = 'https://graph.microsoft.com/v1.0';
+const DOSSIERPAD = 'Owner @ DB-LX/DB - LX/PARTNERS';   // daaronder de jaarmappen, daarin de dossiermappen "NAAM (NNN)"
+const TERUG = location.origin + location.pathname.replace(/[^/]*$/, '');
+const TZ = 'Europe/Brussels';
+const K_SESSIE = 'dblx-mobiel-sessie', K_AANMELDING = 'dblx-mobiel-aanmelding', K_TAB = 'dblx-mobiel-tab', K_FAV = 'dblx-mobiel-favorieten';
+const DAGEN = ['zondag', 'maandag', 'dinsdag', 'woensdag', 'donderdag', 'vrijdag', 'zaterdag'];
+const MAANDEN = ['januari', 'februari', 'maart', 'april', 'mei', 'juni', 'juli', 'augustus', 'september', 'oktober', 'november', 'december'];
+const TABS = ['vandaag', 'mail', 'taken', 'agenda', 'dossiers'];
+const TITELS = { vandaag: 'Vandaag', mail: 'Mail', taken: 'Taken', agenda: 'Agenda', dossiers: 'Dossiers' };
+
+const $ = s => document.querySelector(s);
+const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const veiligeUrl = u => (typeof u === 'string' && /^https:\/\//i.test(u)) ? u : '';
+const bewaar = (k, v) => { try { localStorage.setItem(k, v); } catch (e) { /* zonder opslag werkt de pagina tot ze gesloten wordt */ } };
+const lees = k => { try { return localStorage.getItem(k); } catch (e) { return null; } };
+const wis = k => { try { localStorage.removeItem(k); } catch (e) { /* niets te wissen */ } };
+const vraag = o => '?' + Object.keys(o).map(k => k + '=' + encodeURIComponent(o[k])).join('&');
+
+/* ---- datum en tijd ---- */
+const dagVan = ms => new Intl.DateTimeFormat('sv-SE', { timeZone: TZ }).format(new Date(ms));
+const vandaagISO = () => dagVan(Date.now());
+const plusDagen = (iso, n) => { const d = new Date(iso + 'T12:00:00Z'); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); };
+const uurVan = ms => new Intl.DateTimeFormat('nl-BE', { timeZone: TZ, hour: '2-digit', minute: '2-digit' }).format(new Date(ms));
+function dagNaam(iso, vandaag) {
+  if (iso === vandaag) return 'Vandaag';
+  if (iso === plusDagen(vandaag, 1)) return 'Morgen';
+  const d = new Date(iso + 'T12:00:00Z');
+  return DAGEN[d.getUTCDay()] + ' ' + d.getUTCDate() + ' ' + MAANDEN[d.getUTCMonth()];
+}
+function kortDag(iso, vandaag) {
+  if (!iso) return '';
+  if (iso === vandaag) return 'vandaag';
+  if (iso === plusDagen(vandaag, 1)) return 'morgen';
+  const d = new Date(iso + 'T12:00:00Z');
+  return DAGEN[d.getUTCDay()].slice(0, 2) + ' ' + d.getUTCDate() + '/' + (d.getUTCMonth() + 1);
+}
+function mailTijd(iso, vandaag) {
+  const t = Date.parse(iso); if (isNaN(t)) return '';
+  const dag = dagVan(t); if (dag === vandaag) return uurVan(t);
+  const d = new Date(dag + 'T12:00:00Z'); return d.getUTCDate() + ' ' + MAANDEN[d.getUTCMonth()].slice(0, 3);
+}
+/* Graph geeft een datum als plaatselijke tijd (met de gevraagde tijdzone) of als UTC; in beide gevallen de Belgische kalenderdag teruggeven. */
+function datumVan(dt) {
+  if (!dt || !dt.dateTime) return '';
+  if (!dt.timeZone || dt.timeZone === 'UTC') { const t = Date.parse(dt.dateTime.replace(/(\.\d+)?$/, '') + 'Z'); return isNaN(t) ? '' : dagVan(t); }
+  return dt.dateTime.slice(0, 10);
+}
+function grootte(n) { if (n == null) return ''; if (n < 1024) return n + ' B'; if (n < 1048576) return Math.round(n / 1024) + ' kB'; return (n / 1048576).toFixed(1).replace('.', ',') + ' MB'; }
+
+/* ---- aanmelding: autorisatiecode met PKCE, zonder geheim en zonder bibliotheek van derden ---- */
+const b64url = buf => btoa(String.fromCharCode.apply(null, new Uint8Array(buf))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+const willekeurig = n => b64url(crypto.getRandomValues(new Uint8Array(n)));
+let gekoppeld = false;
+/* config.json bevat enkel { "clientId": "<GUID>" }. Geen geheim: het is het nummer waarmee de pagina zich bij Microsoft bekendmaakt. */
+async function leesConfig() {
+  try {
+    const r = await fetch('config.json', { cache: 'no-store' }); if (!r.ok) return;
+    const c = await r.json();
+    if (c && typeof c.clientId === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(c.clientId)) { CLIENT = c.clientId; gekoppeld = true; }
+  } catch (e) { /* geen of onleesbare config: de pagina blijft "nog niet gekoppeld" */ }
+}
+let sessie = null;            // { access_token, refresh_token, verloopt }
+let vernieuwing = null;       // lopende vernieuwing, zodat gelijktijdige aanvragen er samen een gebruiken
+
+function leesSessie() { try { const s = JSON.parse(lees(K_SESSIE) || 'null'); return s && typeof s.access_token === 'string' && typeof s.refresh_token === 'string' ? s : null; } catch (e) { return null; } }
+function zetSessie(antwoord) {
+  sessie = { access_token: antwoord.access_token, refresh_token: antwoord.refresh_token || (sessie && sessie.refresh_token) || '', verloopt: Date.now() + (Number(antwoord.expires_in) || 0) * 1000 };
+  bewaar(K_SESSIE, JSON.stringify(sessie));
+}
+function vergeetSessie() { sessie = null; wis(K_SESSIE); }
+async function tokenAanvraag(velden) {
+  const r = await fetch(AUTORITEIT + '/token', { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: Object.keys(velden).map(k => k + '=' + encodeURIComponent(velden[k])).join('&') });
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok || !j.access_token) { const e = new Error(j.error_description || j.error || 'aanmelding mislukt'); e.code = j.error || 'fout'; throw e; }
+  return j;
+}
+async function meldAan() {
+  const verifier = willekeurig(48), state = willekeurig(32);
+  const challenge = b64url(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(verifier)));
+  bewaar(K_AANMELDING, JSON.stringify({ verifier, state, t: Date.now() }));
+  location.assign(AUTORITEIT + '/authorize' + vraag({ client_id: CLIENT, response_type: 'code', redirect_uri: TERUG, response_mode: 'fragment', scope: RECHTEN, state, code_challenge: challenge, code_challenge_method: 'S256', prompt: 'select_account' }));
+}
+/* Verwerkt het antwoord van Microsoft in het fragment van het adres. Geeft een melding terug wanneer het misliep. */
+async function verwerkTerugkeer() {
+  if (location.hash.length < 2) return null;
+  const p = new URLSearchParams(location.hash.slice(1));
+  if (!p.has('code') && !p.has('error')) return null;
+  history.replaceState(null, '', location.pathname);          // de code staat nooit langer in de adresbalk dan nodig
+  let bewaard = null; try { bewaard = JSON.parse(lees(K_AANMELDING) || 'null'); } catch (e) { bewaard = null; }
+  wis(K_AANMELDING);
+  if (p.has('error')) return p.get('error_description') || 'Microsoft heeft de aanmelding geweigerd.';
+  if (!bewaard || !bewaard.state || bewaard.state !== p.get('state') || Date.now() - bewaard.t > 15 * 60000) return 'Het antwoord van Microsoft kon niet worden vertrouwd. Meld u opnieuw aan.';
+  try { zetSessie(await tokenAanvraag({ client_id: CLIENT, grant_type: 'authorization_code', code: p.get('code'), redirect_uri: TERUG, code_verifier: bewaard.verifier, scope: RECHTEN })); return null; }
+  catch (e) { return 'De aanmelding kon niet worden afgerond (' + (e.message || 'onbekende fout') + '). Meld u opnieuw aan.'; }
+}
+function vernieuwBewijs() {
+  if (!vernieuwing) {
+    vernieuwing = tokenAanvraag({ client_id: CLIENT, grant_type: 'refresh_token', refresh_token: sessie.refresh_token, scope: RECHTEN })
+      .then(j => { zetSessie(j); }, e => { if (e.code === 'invalid_grant' || e.code === 'interaction_required' || e.code === 'invalid_client') { const f = new Error('afgemeld'); f.soort = 'afgemeld'; throw f; } const f = new Error('net'); f.soort = 'net'; throw f; })
+      .finally(() => { vernieuwing = null; });
+  }
+  return vernieuwing;
+}
+async function geldigBewijs() {
+  if (!sessie) { const f = new Error('afgemeld'); f.soort = 'afgemeld'; throw f; }
+  if (sessie.verloopt - 60000 < Date.now()) await vernieuwBewijs();
+  return sessie.access_token;
+}
+function meldAf() {
+  vergeetSessie(); wis(K_FAV);
+  location.assign(AUTORITEIT + '/logout' + vraag({ post_logout_redirect_uri: TERUG }));
+}
+
+/* ---- Microsoft Graph: enkel lezen ---- */
+async function graph(pad, opties) {
+  const url = pad.startsWith('https://') ? pad : GRAPH + pad;
+  if (!url.startsWith(GRAPH + '/')) { const f = new Error('vreemd adres'); f.soort = 'storing'; throw f; }
+  for (let poging = 0; poging < 2; poging++) {
+    const bewijs = await geldigBewijs();
+    const kop = { Authorization: 'Bearer ' + bewijs, Accept: 'application/json' };
+    if (opties && opties.prefer) kop.Prefer = opties.prefer;
+    let r;
+    try { r = await fetch(url, { method: 'GET', headers: kop, cache: 'no-store' }); } catch (e) { const f = new Error('net'); f.soort = 'net'; throw f; }
+    if (r.status === 401 && poging === 0) { if (sessie && sessie.access_token === bewijs) await vernieuwBewijs(); continue; }
+    if (r.ok) return r.json();
+    const f = new Error('graph ' + r.status); f.status = r.status;
+    f.soort = r.status === 401 ? 'afgemeld' : r.status === 403 ? 'verbod' : r.status === 404 ? 'nietgevonden' : r.status === 429 ? 'druk' : 'storing';
+    if (r.status === 429 || r.status === 503) { const w = parseInt(r.headers.get('Retry-After') || '', 10); if (w > 0) f.wacht = w; }
+    throw f;
+  }
+}
+/* Alle bladzijden van een lijst (begrensd), enkel binnen Graph. */
+async function alle(pad, opties, maxBladen) {
+  let uit = [], volgende = pad;
+  for (let i = 0; volgende && i < (maxBladen || 6); i++) { const j = await graph(volgende, opties); uit = uit.concat(j.value || []); volgende = j['@odata.nextLink'] || null; }
+  return uit;
+}
+function foutTekst(e) {
+  switch (e && e.soort) {
+    case 'verbod': return 'Microsoft 365 geeft deze pagina geen toestemming voor dit onderdeel.';
+    case 'druk': return 'Microsoft 365 vraagt om even te wachten' + (e.wacht ? ' (' + e.wacht + ' seconden)' : '') + '. Tik daarna op Vernieuwen.';
+    case 'nietgevonden': return 'Dit onderdeel is niet gevonden in Microsoft 365.';
+    case 'net': return 'Geen verbinding met Microsoft 365. Controleer uw internetverbinding en tik op Vernieuwen.';
+    default: return 'Microsoft 365 is tijdelijk niet bereikbaar. Wat al geladen was, blijft staan; tik op Vernieuwen om het opnieuw te proberen.';
+  }
+}
+
+/* ---- toestand: alles enkel in het geheugen; bij sluiten is het weg ---- */
+const nieuwDeel = () => ({ items: null, fout: null, op: null });
+const st = { tab: 'vandaag', map: 'in', open: null, agenda: nieuwDeel(), inbox: nieuwDeel(), sent: nieuwDeel(), taken: nieuwDeel(), dossiers: nieuwDeel(), ongelezen: null, mailZoek: null, dossier: null, filter: '', ik: null };
+function favorieten() { try { const f = JSON.parse(lees(K_FAV) || '[]'); return Array.isArray(f) ? f.filter(c => typeof c === 'string') : []; } catch (e) { return []; } }
+const versRegel = d => d.op ? 'bijgewerkt om ' + uurVan(d.op) : '';
+const notitie = d => d.fout ? '<div class="melding let">' + esc(foutTekst(d.fout)) + '</div>' : '';
+
+/* ---- modellen ---- */
+const naamVan = x => (x && x.emailAddress && (x.emailAddress.name || x.emailAddress.address)) || '';
+function mailModel(o) {
+  return { id: String(o.id), onderwerp: o.subject || '(geen onderwerp)', van: naamVan(o.from), aan: (o.toRecipients || []).map(naamVan).filter(Boolean), cc: (o.ccRecipients || []).map(naamVan).filter(Boolean),
+    tijd: o.receivedDateTime || o.sentDateTime || '', kort: o.bodyPreview || '', bijlage: !!o.hasAttachments, gelezen: o.isRead !== false, link: veiligeUrl(o.webLink) };
+}
+function afspraakModel(o) {
+  const b = (o.start && o.start.dateTime) || '', e = (o.end && o.end.dateTime) || '';
+  return { id: String(o.id), titel: o.subject || '(zonder titel)', dag: b.slice(0, 10), einddag: e.slice(0, 10), van: b.slice(11, 16), tot: e.slice(11, 16), heleDag: !!o.isAllDay,
+    plaats: (o.location && o.location.displayName) || '', link: veiligeUrl(o.webLink), geschrapt: !!o.isCancelled };
+}
+function codeVan(naam) {
+  let m = /\((\d{3}[A-Z]?)\)\s*$/.exec(naam); if (m) return m[1];
+  m = /___\s*(\d{1,3})\s*$/.exec(naam); return m ? ('00' + m[1]).slice(-3) : '';
+}
+function gesorteerdeDossiers() {
+  const fav = favorieten();
+  return (st.dossiers.items || []).slice().sort((a, b) => { const fa = fav.includes(a.code), fb = fav.includes(b.code); return fa === fb ? a.naam.localeCompare(b.naam, 'nl', { sensitivity: 'base' }) : fa ? -1 : 1; });
+}
+/* Afspraken vanaf vandaag; een afspraak die al bezig is, telt bij vandaag. */
+function komende() {
+  const vandaag = vandaagISO();
+  return (st.agenda.items || []).filter(a => !a.geschrapt && a.dag).map(a => (a.dag < vandaag && a.einddag >= vandaag && !(a.heleDag && a.einddag === vandaag)) ? Object.assign({}, a, { dag: vandaag, heleDag: true }) : a)
+    .filter(a => a.dag >= vandaag).sort((a, b) => a.dag !== b.dag ? a.dag.localeCompare(b.dag) : a.heleDag === b.heleDag ? a.van.localeCompare(b.van) : a.heleDag ? -1 : 1);
+}
+function gesorteerdeTaken() { return (st.taken.items || []).slice().sort((a, b) => a.vervalt && b.vervalt ? a.vervalt.localeCompare(b.vervalt) : a.vervalt ? -1 : b.vervalt ? 1 : a.titel.localeCompare(b.titel, 'nl')); }
+
+/* ---- tekenen ---- */
+function taakRijen(taken, vandaag) {
+  if (!taken.length) return '<ul class="lijst"><li class="geen">Geen openstaande taken.</li></ul>';
+  let h = '<ul class="lijst">';
+  for (const t of taken) h += '<li><div class="rij vast smal' + (t.vervalt && t.vervalt < vandaag ? ' laat' : '') + '"><span class="uur">' + (t.belangrijk ? '!' : '') + '</span><span class="titel">' + esc(t.titel) + '</span><span class="neven">' + esc(t.vervalt ? kortDag(t.vervalt, vandaag) : 'geen datum') + '</span><span class="onder zacht">' + esc(t.lijst) + '</span></div></li>';
+  return h + '</ul>';
+}
+function dossierRijen(lijst) {
+  const fav = favorieten(); let h = '<ul class="lijst">';
+  for (const d of lijst) h += '<li><button class="rij smal" type="button" data-dossier="' + esc(d.id) + '"><span class="uur ster">' + (fav.includes(d.code) ? '★' : '') + '</span><span class="titel">' + esc(d.naam) + '</span><span class="neven">' + esc(d.jaar) + '</span></button></li>';
+  return h + '</ul>';
+}
+function tekenVandaag() {
+  const vandaag = vandaagISO(); const kom = komende(); const taken = gesorteerdeTaken();
+  $('#telTaken').textContent = st.taken.items ? String(st.taken.items.length) : st.taken.fout ? '–' : '…';
+  $('#telAfspraken').textContent = st.agenda.items ? String(kom.filter(a => a.dag === vandaag).length) : st.agenda.fout ? '–' : '…';
+  $('#telDossiers').textContent = st.dossiers.items ? String(st.dossiers.items.length) : st.dossiers.fout ? '–' : '…';
+  $('#telOngelezen').textContent = st.ongelezen != null ? String(st.ongelezen) : st.inbox.fout ? '–' : '…';
+  $('#eerstAandacht').innerHTML = notitie(st.taken) + (st.taken.items ? taakRijen(taken.slice(0, 5), vandaag) : st.taken.fout ? '' : '<div class="vers"><span>Taken worden opgehaald…</span></div>');
+  let h = notitie(st.agenda);
+  if (st.agenda.items) {
+    if (!kom.length) h += '<ul class="lijst"><li class="geen">Geen afspraken in de komende veertien dagen.</li></ul>';
+    else { h += '<ul class="lijst">'; for (const a of kom.slice(0, 6)) h += '<li><div class="rij vast"><span class="uur">' + esc(kortDag(a.dag, vandaag)) + '</span><span class="titel">' + esc(a.titel) + '</span><span class="neven">' + (a.heleDag ? 'hele dag' : esc(a.van)) + '</span>' + (a.plaats ? '<span class="onder">' + esc(a.plaats) + '</span>' : '') + '</div></li>'; h += '</ul>'; }
+  } else if (!st.agenda.fout) h += '<div class="vers"><span>Agenda wordt opgehaald…</span></div>';
+  $('#komendeAfspraken').innerHTML = h;
+  h = notitie(st.dossiers);
+  if (st.dossiers.items) {
+    const fav = favorieten(); const alle_ = gesorteerdeDossiers(); const laatste = alle_.reduce((m, d) => d.jaar > m ? d.jaar : m, '');
+    const snel = alle_.filter(d => fav.includes(d.code)).concat(alle_.filter(d => !fav.includes(d.code) && d.jaar === laatste)).slice(0, 6);
+    h += snel.length ? dossierRijen(snel) : '<ul class="lijst"><li class="geen">Geen dossiermappen gevonden.</li></ul>';
+  } else if (!st.dossiers.fout) h += '<div class="vers"><span>Dossiers worden opgehaald…</span></div>';
+  $('#snelDossier').innerHTML = h;
+}
+function mailRijen(items, verzonden, vandaag) {
+  if (!items.length) return '<ul class="lijst"><li class="geen">Geen berichten.</li></ul>';
+  let h = '<ul class="lijst">';
+  for (const m of items) {
+    const wie = verzonden ? ('Aan: ' + (m.aan.slice(0, 2).join(', ') || '—') + (m.aan.length > 2 ? ' +' + (m.aan.length - 2) : '')) : m.van;
+    h += '<li><button class="rij" type="button" data-mail="' + esc(m.id) + '"><span class="stip' + (m.gelezen ? ' uit' : '') + '"></span><span class="titel">' + esc(wie) + '</span><span class="neven">' + (m.bijlage ? 'bijlage · ' : '') + esc(mailTijd(m.tijd, vandaag)) + '</span>'
+      + '<span class="onder">' + esc(m.onderwerp) + '</span>' + (m.kort ? '<span class="onder zacht kort">' + esc(m.kort) + '</span>' : '') + '</button></li>';
+  }
+  return h + '</ul>';
+}
+function tekenMail() {
+  const el = $('#mailInhoud'); const vandaag = vandaagISO();
+  $('#mapIn').setAttribute('aria-pressed', String(st.map === 'in' && !st.mailZoek)); $('#mapUit').setAttribute('aria-pressed', String(st.map === 'uit' && !st.mailZoek));
+  if (st.mailZoek) {
+    const z = st.mailZoek;
+    let h = '<div class="kruimel"><b>Zoekresultaat voor ' + esc(z.q) + '</b><button class="knop stil" type="button" id="mailZoekWis">Wissen</button></div>';
+    h += z.bezig ? '<div class="vers"><span>Zoeken…</span></div>' : z.fout ? '<div class="melding let">' + esc(foutTekst(z.fout)) + '</div>' : mailRijen(z.items, false, vandaag);
+    el.innerHTML = h; return;
+  }
+  const d = st.map === 'in' ? st.inbox : st.sent;
+  if (d.items === null && !d.fout) { el.innerHTML = '<div class="vers"><span>Berichten worden opgehaald…</span></div>'; return; }
+  el.innerHTML = notitie(d) + (d.items ? '<div class="vers"><span>' + (st.map === 'in' ? 'Laatste 25 in Postvak IN' : 'Laatste 25 verzonden') + '</span><span>' + esc(versRegel(d)) + '</span></div>' + mailRijen(d.items, st.map === 'uit', vandaag) : '')
+    + '<p class="voetnoot">Tik op een bericht om het te lezen. Beantwoorden doet u in Outlook; opslaan in een dossier vanaf de telefoon volgt, de automatische opslag op uw pc loopt intussen door.</p>';
+}
+function tekenTaken() {
+  const d = st.taken; const el = $('#takenInhoud');
+  if (d.items === null && !d.fout) { el.innerHTML = '<div class="vers"><span>Taken worden opgehaald…</span></div>'; return; }
+  el.innerHTML = notitie(d) + (d.items ? '<div class="vers"><span>Openstaande taken op vervaldatum</span><span>' + esc(versRegel(d)) + '</span></div>' + taakRijen(gesorteerdeTaken(), vandaagISO()) : '')
+    + '<div class="uitklap los"><a class="knop" href="https://to-do.office.com/tasks/" target="_blank" rel="noopener">Openen in Microsoft To Do ↗</a></div>';
+}
+function tekenAgenda() {
+  const d = st.agenda; const el = $('#agendaInhoud'); const vandaag = vandaagISO();
+  if (d.items === null && !d.fout) { el.innerHTML = '<div class="vers"><span>Agenda wordt opgehaald…</span></div>'; return; }
+  let h = notitie(d);
+  if (d.items) {
+    const per = new Map(); for (const a of komende()) { if (!per.has(a.dag)) per.set(a.dag, []); per.get(a.dag).push(a); }
+    h += '<div class="vers"><span>Vandaag en de komende veertien dagen</span><span>' + esc(versRegel(d)) + '</span></div>';
+    if (!per.has(vandaag)) h += '<div class="blok"><h2>Vandaag</h2><ul class="lijst"><li class="geen">Geen afspraken vandaag.</li></ul></div>';
+    for (const dag of [...per.keys()].sort()) {
+      h += '<div class="blok"><h2>' + esc(dagNaam(dag, vandaag)) + '</h2><ul class="lijst">';
+      for (const a of per.get(dag)) {
+        const open = st.open === 'a:' + a.id;
+        h += '<li><button class="rij" type="button" data-open="a:' + esc(a.id) + '" aria-expanded="' + open + '"><span class="uur">' + (a.heleDag ? 'dag' : esc(a.van)) + '</span><span class="titel">' + esc(a.titel) + '</span><span class="neven">' + (a.heleDag || !a.tot ? '' : 'tot ' + esc(a.tot)) + '</span>'
+          + (a.plaats ? '<span class="onder">' + esc(a.plaats) + '</span>' : '') + '</button>' + (open && a.link ? '<div class="uitklap"><a class="knop stil" href="' + esc(a.link) + '" target="_blank" rel="noopener">Openen in Outlook</a></div>' : '') + '</li>';
+      }
+      h += '</ul></div>';
+    }
+  }
+  el.innerHTML = h;
+}
+function tekenDossiers() {
+  const el = $('#dosInhoud'); $('#dosZoek').hidden = !!st.dossier;
+  if (st.dossier) {
+    const k = st.dossier; const top = k.pad[0]; const hier = k.pad[k.pad.length - 1]; const fav = favorieten().includes(top.code);
+    let h = '<div class="kruimel"><button class="knop stil" type="button" id="mapTerug">Terug</button><b>' + esc(k.pad.map(p => p.naam).join(' › ')) + '</b>'
+      + (k.pad.length === 1 && top.code ? '<button class="knop' + (fav ? ' goud' : ' stil') + '" type="button" id="sterZet" aria-pressed="' + fav + '">' + (fav ? '★ Favoriet' : '☆ Favoriet') + '</button>' : '') + '</div>';
+    if (k.bezig) h += '<div class="vers"><span>Map wordt gelezen…</span></div>';
+    else if (k.fout) h += '<div class="melding let">' + esc(foutTekst(k.fout)) + '</div>';
+    else if (!k.items.length) h += '<ul class="lijst"><li class="geen">Deze map is leeg.</li></ul>';
+    else {
+      h += '<ul class="lijst">';
+      for (const i of k.items) {
+        if (i.map) { h += '<li><button class="rij" type="button" data-map="' + esc(i.id) + '" data-naam="' + esc(i.naam) + '" data-link="' + esc(i.link) + '"><span class="uur">map</span><span class="titel">' + esc(i.naam) + '</span><span class="neven"></span></button></li>'; continue; }
+        const open = st.open === 's:' + i.id;
+        h += '<li><button class="rij" type="button" data-stuk="' + esc(i.id) + '" aria-expanded="' + open + '"><span class="uur"></span><span class="titel">' + esc(i.naam) + '</span><span class="neven">' + esc(grootte(i.bytes)) + '</span><span class="onder zacht">gewijzigd ' + esc(mailTijd(i.gewijzigd, vandaagISO())) + '</span></button>';
+        if (open) h += '<div class="uitklap">' + (k.lezen && k.lezen.id === i.id ? (k.lezen.url ? '<a class="knop goud" href="' + esc(k.lezen.url) + '" target="_blank" rel="noopener">Lezen</a>' : '<span class="neven">' + esc(k.lezen.fout ? foutTekst(k.lezen.fout) : 'Stuk wordt klaargezet…') + '</span>') : '')
+          + (i.link ? '<a class="knop stil" href="' + esc(i.link) + '" target="_blank" rel="noopener">Openen in OneDrive</a>' : '') + '</div>';
+        h += '</li>';
+      }
+      h += '</ul>';
+    }
+    if (veiligeUrl(hier.link)) h += '<div class="uitklap los"><a class="knop stil maplink" href="' + esc(hier.link) + '" target="_blank" rel="noopener">Map openen in OneDrive</a></div>';
+    el.innerHTML = h; return;
+  }
+  const d = st.dossiers;
+  if (d.items === null && !d.fout) { el.innerHTML = '<div class="vers"><span>Dossiers worden opgehaald…</span></div>'; return; }
+  let h = notitie(d);
+  if (d.items) {
+    const f = st.filter.trim().toLowerCase();
+    const lijst = gesorteerdeDossiers().filter(x => !f || x.naam.toLowerCase().includes(f) || x.code.toLowerCase().includes(f) || x.jaar.includes(f));
+    h += '<div class="vers"><span>' + lijst.length + ' van ' + d.items.length + ' dossiers</span><span>' + esc(versRegel(d)) + '</span></div>';
+    h += lijst.length ? dossierRijen(lijst) : '<ul class="lijst"><li class="geen">Geen dossier gevonden.</li></ul>';
+  }
+  el.innerHTML = h;
+}
+function teken() { tekenVandaag(); tekenMail(); tekenTaken(); tekenAgenda(); tekenDossiers(); }
+
+/* ---- laden ---- */
+function behandel(e) { if (e && e.soort === 'afgemeld') { toonAanmelden('Uw aanmelding is verlopen. Meld u opnieuw aan.'); return true; } return false; }
+async function laad(deel, werk) {
+  try { deel.items = await werk(); deel.fout = null; deel.op = Date.now(); }
+  catch (e) { if (behandel(e)) return; deel.fout = e; if (e.soort === 'verbod') deel.items = null; }
+  teken();
+}
+const MAILVELDEN = 'id,subject,from,toRecipients,receivedDateTime,sentDateTime,bodyPreview,hasAttachments,isRead,webLink';
+function laadAlles() {
+  const vandaag = vandaagISO();
+  laad(st.agenda, async () => (await alle('/me/calendarView' + vraag({ startDateTime: plusDagen(vandaag, -1) + 'T12:00:00Z', endDateTime: plusDagen(vandaag, 15) + 'T12:00:00Z', $select: 'id,subject,start,end,isAllDay,location,webLink,isCancelled', $orderby: 'start/dateTime', $top: 100 }), { prefer: 'outlook.timezone="' + TZ + '"' }, 3)).map(afspraakModel).filter(a => a.dag < plusDagen(vandaag, 15)));
+  laad(st.inbox, async () => {
+    graph('/me/mailFolders/inbox' + vraag({ $select: 'unreadItemCount' })).then(j => { st.ongelezen = j.unreadItemCount; tekenVandaag(); }, () => { /* de teller is bijzaak */ });
+    return ((await graph('/me/mailFolders/inbox/messages' + vraag({ $select: MAILVELDEN, $top: 25, $orderby: 'receivedDateTime desc' }))).value || []).map(mailModel);
+  });
+  laad(st.sent, async () => ((await graph('/me/mailFolders/sentitems/messages' + vraag({ $select: MAILVELDEN, $top: 25, $orderby: 'sentDateTime desc' }))).value || []).map(mailModel));
+  laad(st.taken, async () => {
+    const lijsten = await alle('/me/todo/lists' + vraag({ $top: 50 }), null, 2);
+    const per = await Promise.all(lijsten.map(async l => (await alle('/me/todo/lists/' + encodeURIComponent(l.id) + '/tasks' + vraag({ $filter: "status ne 'completed'", $select: 'id,title,status,importance,dueDateTime', $top: 100 }), { prefer: 'outlook.timezone="' + TZ + '"' }, 3))
+      .map(t => ({ id: String(t.id), titel: t.title || '(zonder titel)', lijst: l.displayName || '', vervalt: datumVan(t.dueDateTime), belangrijk: t.importance === 'high' }))));
+    return [].concat.apply([], per);
+  });
+  laad(st.dossiers, async () => {
+    const pad = DOSSIERPAD.split('/').map(encodeURIComponent).join('/');
+    const jaren = (await alle('/me/drive/root:/' + pad + ':/children' + vraag({ $select: 'id,name,folder', $top: 200 }), null, 3)).filter(m => m.folder && /\d{4}-\d{4}/.test(m.name || ''));
+    const per = await Promise.all(jaren.map(async j => { const jaar = /(\d{4}-\d{4})/.exec(j.name)[1];
+      return (await alle('/me/drive/items/' + encodeURIComponent(j.id) + '/children' + vraag({ $select: 'id,name,folder,webUrl', $top: 200 }), null, 6)).filter(m => m.folder && codeVan(m.name || '')).map(m => ({ id: String(m.id), naam: m.name, code: codeVan(m.name), jaar, link: veiligeUrl(m.webUrl) })); }));
+    return [].concat.apply([], per);
+  });
+  graph('/me' + vraag({ $select: 'displayName,userPrincipalName' })).then(j => { st.ik = j; $('#wie').textContent = 'Aangemeld als ' + (j.displayName || j.userPrincipalName || ''); }, () => { /* de naam is bijzaak */ });
+  st.geladen = Date.now();
+}
+async function zoekMail(q) {
+  st.mailZoek = { q, bezig: true }; tekenMail();
+  try { const j = await graph('/me/messages' + vraag({ $search: '"' + q.replace(/["\\]/g, ' ').replace(/\s+/g, ' ').trim() + '"', $select: MAILVELDEN, $top: 25 })); st.mailZoek = { q, items: (j.value || []).map(mailModel).sort((a, b) => b.tijd.localeCompare(a.tijd)) }; }
+  catch (e) { if (behandel(e)) return; st.mailZoek = { q, fout: e }; }
+  tekenMail();
+}
+async function leesMail(id) {
+  const bekend = [].concat(st.inbox.items || [], st.sent.items || [], (st.mailZoek && st.mailZoek.items) || []).find(m => m.id === id);
+  st.lezer = id; $('#bladTitel').textContent = bekend ? bekend.onderwerp : 'Bericht'; $('#bladMeta').textContent = ''; $('#bladTekst').textContent = 'Bericht wordt opgehaald…'; $('#bladBijlagen').hidden = true; $('#bladVoet').textContent = ''; $('#blad').hidden = false; $('#bladSluit').focus();
+  try {
+    const j = await graph('/me/messages/' + encodeURIComponent(id) + vraag({ $select: 'id,subject,from,toRecipients,ccRecipients,receivedDateTime,sentDateTime,body,hasAttachments,webLink' }), { prefer: 'outlook.body-content-type="text"' });
+    if (st.lezer !== id) return;
+    const m = mailModel(j); const t = Date.parse(m.tijd);
+    $('#bladTitel').textContent = m.onderwerp;
+    $('#bladMeta').innerHTML = '<span><b>Van:</b> ' + esc(m.van) + '</span><span><b>Aan:</b> ' + esc(m.aan.join(', ') || '—') + '</span>' + (m.cc.length ? '<span><b>Cc:</b> ' + esc(m.cc.join(', ')) + '</span>' : '') + (isNaN(t) ? '' : '<span>' + esc(dagNaam(dagVan(t), vandaagISO()) + ' om ' + uurVan(t)) + '</span>');
+    $('#bladTekst').textContent = ((j.body && j.body.content) || '').replace(/\r\n/g, '\n').trim() || '(dit bericht heeft geen tekst)';
+    $('#bladVoet').innerHTML = m.link ? '<a class="knop" href="' + esc(m.link) + '" target="_blank" rel="noopener">Openen in Outlook</a>' : '';
+    if (j.hasAttachments) graph('/me/messages/' + encodeURIComponent(id) + '/attachments' + vraag({ $select: 'id,name,size,contentType' })).then(b => { if (st.lezer !== id) return; const n = (b.value || []).map(x => x.name + ' (' + grootte(x.size) + ')'); if (n.length) { $('#bladBijlagen').textContent = 'Bijlagen: ' + n.join(' · ') + '. Open het bericht in Outlook om een bijlage te openen.'; $('#bladBijlagen').hidden = false; } }, () => { /* de bijlagelijst is bijzaak */ });
+  } catch (e) { if (behandel(e)) { $('#blad').hidden = true; return; } if (st.lezer === id) $('#bladTekst').textContent = foutTekst(e); }
+}
+async function leesMap() {
+  const k = st.dossier; const hier = k.pad[k.pad.length - 1];
+  try {
+    const items = await alle('/me/drive/items/' + encodeURIComponent(hier.id) + '/children' + vraag({ $select: 'id,name,folder,file,size,webUrl,lastModifiedDateTime', $top: 200 }), null, 6);
+    if (st.dossier !== k) return;
+    k.items = items.map(i => ({ id: String(i.id), naam: i.name || '', map: !!i.folder, bytes: i.size, link: veiligeUrl(i.webUrl), gewijzigd: i.lastModifiedDateTime || '' })).sort((a, b) => a.map === b.map ? a.naam.localeCompare(b.naam, 'nl', { sensitivity: 'base', numeric: true }) : a.map ? -1 : 1);
+    k.bezig = false; k.fout = null;
+  } catch (e) { if (behandel(e)) return; if (st.dossier !== k) return; k.bezig = false; k.fout = e; }
+  tekenDossiers();
+}
+function openDossier(id) { const d = (st.dossiers.items || []).find(x => x.id === id); if (!d) return; st.dossier = { pad: [{ id: d.id, naam: d.naam, code: d.code, link: d.link }], bezig: true }; st.open = null; kiesTab('dossiers'); tekenDossiers(); leesMap(); }
+async function openStuk(id) {
+  const k = st.dossier; if (!k) return;
+  if (st.open === 's:' + id) { st.open = null; tekenDossiers(); return; }
+  st.open = 's:' + id; k.lezen = { id }; tekenDossiers();
+  try { const j = await graph('/me/drive/items/' + encodeURIComponent(id) + vraag({ select: 'id,name,@microsoft.graph.downloadUrl' })); if (st.dossier !== k || !k.lezen || k.lezen.id !== id) return; k.lezen.url = veiligeUrl(j['@microsoft.graph.downloadUrl']); if (!k.lezen.url) k.lezen.fout = { soort: 'nietgevonden' }; }
+  catch (e) { if (behandel(e)) return; if (st.dossier !== k || !k.lezen || k.lezen.id !== id) return; k.lezen.fout = e; }
+  tekenDossiers();
+}
+
+/* ---- bediening ---- */
+function kiesTab(t) {
+  if (!TABS.includes(t)) t = 'vandaag';
+  st.tab = t; if (t !== 'dossiers') st.open = null;
+  for (const n of TABS) { $('#tab-' + n).hidden = n !== t; $('.tabs [data-tab="' + n + '"]').setAttribute('aria-selected', String(n === t)); }
+  $('#kopTitel').textContent = TITELS[t]; bewaar(K_TAB, t); window.scrollTo(0, 0);
+}
+function toonAanmelden(melding) {
+  vergeetSessie(); Object.assign(st, { agenda: nieuwDeel(), inbox: nieuwDeel(), sent: nieuwDeel(), taken: nieuwDeel(), dossiers: nieuwDeel(), ongelezen: null, mailZoek: null, dossier: null, ik: null });
+  $('#app').hidden = true; $('#tabs').hidden = true; $('#blad').hidden = true;
+  const m = $('#aanmeldMelding'); m.hidden = !melding; m.textContent = melding || '';
+  if (!gekoppeld) { $('#btnAanmelden').hidden = true; $('#aanmeldUitleg').textContent = 'Deze pagina is nog niet gekoppeld aan Microsoft 365. Zodra de koppeling is ingesteld, verschijnt hier de knop om aan te melden.'; }
+  $('#aanmeldScherm').hidden = false;
+}
+function toonApp() { $('#aanmeldScherm').hidden = true; $('#app').hidden = false; $('#tabs').hidden = false; kiesTab(lees(K_TAB) || 'vandaag'); teken(); laadAlles(); }
+
+$('#btnAanmelden').addEventListener('click', () => { $('#btnAanmelden').disabled = true; meldAan().catch(() => { $('#btnAanmelden').disabled = false; const m = $('#aanmeldMelding'); m.hidden = false; m.textContent = 'De aanmelding kon niet worden gestart. Probeer het opnieuw.'; }); });
+$('#btnAfmelden').addEventListener('click', meldAf);
+$('#btnVernieuw').addEventListener('click', () => { const b = $('#btnVernieuw'); b.disabled = true; b.textContent = 'Bezig…'; laadAlles(); if (st.dossier) { st.dossier.bezig = true; tekenDossiers(); leesMap(); } setTimeout(() => { b.disabled = false; b.textContent = 'Vernieuwen'; }, 1500); });
+$('#tabs').addEventListener('click', e => { const b = e.target.closest('[data-tab]'); if (b) kiesTab(b.dataset.tab); });
+$('#mapIn').addEventListener('click', () => { st.map = 'in'; st.mailZoek = null; $('#mailQ').value = ''; tekenMail(); });
+$('#mapUit').addEventListener('click', () => { st.map = 'uit'; st.mailZoek = null; $('#mailQ').value = ''; tekenMail(); });
+$('#mailZoek').addEventListener('submit', e => { e.preventDefault(); const q = $('#mailQ').value.trim(); if (!q) { st.mailZoek = null; tekenMail(); return; } zoekMail(q); });
+$('#dosQ').addEventListener('input', () => { st.filter = $('#dosQ').value; tekenDossiers(); });
+$('#bladSluit').addEventListener('click', () => { $('#blad').hidden = true; st.lezer = null; });
+document.addEventListener('keydown', e => { if (e.key === 'Escape' && !$('#blad').hidden) $('#bladSluit').click(); });
+document.addEventListener('click', e => {
+  const t = e.target;
+  if (t.id === 'mailZoekWis') { st.mailZoek = null; $('#mailQ').value = ''; tekenMail(); return; }
+  if (t.id === 'mapTerug') { const k = st.dossier; if (k && k.pad.length > 1) { st.dossier = { pad: k.pad.slice(0, -1), bezig: true }; st.open = null; tekenDossiers(); leesMap(); } else { st.dossier = null; st.open = null; tekenDossiers(); tekenVandaag(); } return; }
+  if (t.id === 'sterZet') { const code = st.dossier.pad[0].code; const f = favorieten(); const i = f.indexOf(code); if (i >= 0) f.splice(i, 1); else f.push(code); bewaar(K_FAV, JSON.stringify(f)); tekenDossiers(); tekenVandaag(); return; }
+  const naar = t.closest('[data-naar]'); if (naar) { kiesTab(naar.dataset.naar); return; }
+  const ml = t.closest('[data-mail]'); if (ml) { leesMail(ml.dataset.mail); return; }
+  const ds = t.closest('[data-dossier]'); if (ds) { openDossier(ds.dataset.dossier); return; }
+  const mp = t.closest('[data-map]'); if (mp && st.dossier) { st.dossier = { pad: st.dossier.pad.concat([{ id: mp.dataset.map, naam: mp.dataset.naam, link: mp.dataset.link || '' }]), bezig: true }; st.open = null; tekenDossiers(); leesMap(); return; }
+  const sk = t.closest('[data-stuk]'); if (sk) { openStuk(sk.dataset.stuk); return; }
+  const op = t.closest('[data-open]'); if (op) { st.open = st.open === op.dataset.open ? null : op.dataset.open; tekenAgenda(); }
+});
+document.addEventListener('visibilitychange', () => { if (!document.hidden && sessie && st.geladen && Date.now() - st.geladen > 5 * 60000) laadAlles(); });
+
+(async function start() {
+  await leesConfig();
+  const melding = gekoppeld ? await verwerkTerugkeer() : null;
+  if (!sessie) sessie = leesSessie();
+  if (melding || !sessie || !gekoppeld) { toonAanmelden(melding); return; }
+  toonApp();
+})();
+})();
+</script>
+</body>
+</html>
