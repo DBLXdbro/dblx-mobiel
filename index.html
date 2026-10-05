@@ -2,7 +2,7 @@
 <html lang="nl">
 <head>
 <meta charset="utf-8">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-jOEIpgKTllBTe2klIct60wiBHszCMjKV0pf5X94a5Xo='; style-src 'sha256-56WuVGchgKeCiloe3EDk8xro6r7zBKAMatAt/9JU7Lg='; connect-src 'self' https://graph.microsoft.com https://login.microsoftonline.com; img-src 'self' data:; manifest-src 'self'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-KbjX+9ZFJ8KTFXZeqtIxzfJ79lAMrbcKlkfoZRKqd9k='; style-src 'sha256-56WuVGchgKeCiloe3EDk8xro6r7zBKAMatAt/9JU7Lg='; connect-src 'self' https://graph.microsoft.com https://login.microsoftonline.com; img-src 'self' data:; manifest-src 'self'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="referrer" content="no-referrer">
 <meta name="robots" content="noindex,nofollow">
@@ -162,7 +162,7 @@ a { color: var(--paars-licht); }
     <div class="tegels">
       <button class="tegel" type="button" data-naar="taken"><span class="naam">Openstaande taken</span><span class="getal" id="telTaken">…</span><span class="uitleg">Uit uw takenlijsten</span></button>
       <button class="tegel" type="button" data-naar="agenda"><span class="naam">Afspraken vandaag</span><span class="getal" id="telAfspraken">…</span><span class="uitleg">Uw Outlook-agenda</span></button>
-      <button class="tegel" type="button" data-naar="dossiers"><span class="naam">Dossiers</span><span class="getal" id="telDossiers">…</span><span class="uitleg">Dossiermappen in OneDrive</span></button>
+      <button class="tegel" type="button" data-naar="dossiers"><span class="naam">Dossiers</span><span class="getal" id="telDossiers">…</span><span class="uitleg">Dossiermappen van het kantoor</span></button>
       <button class="tegel" type="button" data-naar="mail"><span class="naam">Ongelezen mail</span><span class="getal" id="telOngelezen">…</span><span class="uitleg">Postvak IN</span></button>
     </div>
     <div class="blok"><h2>Eerst aandacht</h2><div id="eerstAandacht"></div><p class="voetnoot">Openstaande taken op vervaldatum.</p></div>
@@ -203,7 +203,7 @@ a { color: var(--paars-licht); }
   <div class="voet">
     <span id="wie"></span>
     <button class="knop stil" id="btnAfmelden" type="button">Afmelden</button>
-    <span>DB/LX Mobiel 1.0.2 · alleen lezen · rechtstreeks uit Microsoft 365</span>
+    <span>DB/LX Mobiel 1.1.0 · alleen lezen · rechtstreeks uit Microsoft 365</span>
   </div>
 </div>
 
@@ -224,17 +224,19 @@ a { color: var(--paars-licht); }
 <script>
 (function () {
 'use strict';
-/* DB/LX Mobiel 1.0.2 - de Werkplek op de telefoon, alleen lezen.
+/* DB/LX Mobiel 1.1.0 - de Werkplek op de telefoon, alleen lezen.
    Geen server en geen tussenpersoon: aanmelding rechtstreeks bij Microsoft (autorisatiecode met PKCE, enkel de eigen tenant),
    gegevens rechtstreeks uit Microsoft Graph naar dit toestel. Er wordt niets gewijzigd, verzonden of gewist. */
 if (window.top !== window.self) { document.body.textContent = ''; return; }   // nooit in een kader van een andere pagina
 
 const TENANT = 'dblx.be';
 let CLIENT = '';                // de client-id van de registratie in Microsoft 365; komt uit config.json naast deze pagina
-const RECHTEN = 'openid profile offline_access User.Read Mail.Read Calendars.Read Tasks.Read Files.Read';
+/* Files.Read.All = bestanden lezen die de aangemelde gebruiker zelf mag zien, ook in de gedeelde bibliotheek van het kantoor. Geen schrijfrecht. */
+const RECHTEN = 'openid profile offline_access User.Read Mail.Read Calendars.Read Tasks.Read Files.Read.All';
 const AUTORITEIT = 'https://login.microsoftonline.com/' + TENANT + '/oauth2/v2.0';
 const GRAPH = 'https://graph.microsoft.com/v1.0';
-const DOSSIERPAD = 'Owner @ DB-LX/DB - LX/PARTNERS';   // daaronder de jaarmappen, daarin de dossiermappen "NAAM (NNN)"
+let DOSSIERSCHIJF = '';        // de bibliotheek met de dossiers (teamsite DB/LX Dossiers); komt uit config.json naast deze pagina
+const DOSSIERPAD = 'Owner @ DB-LX/DB - LX/PARTNERS';   // de plaats van voor 05.10.2026 in de eigen OneDrive; enkel nog gebruikt wanneer config.json geen bibliotheek noemt
 const TERUG = location.origin + location.pathname.replace(/[^/]*$/, '');
 const TZ = 'Europe/Brussels';
 const K_SESSIE = 'dblx-mobiel-sessie', K_AANMELDING = 'dblx-mobiel-aanmelding', K_TAB = 'dblx-mobiel-tab', K_FAV = 'dblx-mobiel-favorieten';
@@ -286,20 +288,25 @@ function grootte(n) { if (n == null) return ''; if (n < 1024) return n + ' B'; i
 const b64url = buf => btoa(String.fromCharCode.apply(null, new Uint8Array(buf))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
 const willekeurig = n => b64url(crypto.getRandomValues(new Uint8Array(n)));
 let gekoppeld = false;
-/* config.json bevat enkel { "clientId": "<GUID>" }. Geen geheim: het is het nummer waarmee de pagina zich bij Microsoft bekendmaakt. */
+/* config.json bevat { "clientId": "<GUID>", "dossierDrive": "b!..." }. Geen geheimen: het nummer waarmee de pagina zich bij Microsoft bekendmaakt
+   en het nummer van de bibliotheek met de dossiers. Zonder aanmelding en zonder leesrecht geeft geen van beide toegang tot iets. */
 async function leesConfig() {
   try {
     const r = await fetch('config.json', { cache: 'no-store' }); if (!r.ok) return;
     const c = await r.json();
     if (c && typeof c.clientId === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(c.clientId)) { CLIENT = c.clientId; gekoppeld = true; }
+    /* Enkel een nummer in de vaste vorm van Microsoft wordt aanvaard; het komt nooit ongecontroleerd in een adres terecht. */
+    if (c && typeof c.dossierDrive === 'string' && /^b![A-Za-z0-9_-]{16,160}$/.test(c.dossierDrive)) DOSSIERSCHIJF = c.dossierDrive;
   } catch (e) { /* geen of onleesbare config: de pagina blijft "nog niet gekoppeld" */ }
 }
-let sessie = null;            // { access_token, refresh_token, verloopt }
+let sessie = null;            // { access_token, refresh_token, verloopt, rechten }
 let vernieuwing = null;       // lopende vernieuwing, zodat gelijktijdige aanvragen er samen een gebruiken
 
 function leesSessie() { try { const s = JSON.parse(lees(K_SESSIE) || 'null'); return s && typeof s.access_token === 'string' && typeof s.refresh_token === 'string' ? s : null; } catch (e) { return null; } }
 function zetSessie(antwoord) {
-  sessie = { access_token: antwoord.access_token, refresh_token: antwoord.refresh_token || (sessie && sessie.refresh_token) || '', verloopt: Date.now() + (Number(antwoord.expires_in) || 0) * 1000 };
+  /* rechten: wat Microsoft toekende; antwoordt Microsoft bij een vernieuwing zonder overzicht, dan blijft het bekende overzicht staan. */
+  sessie = { access_token: antwoord.access_token, refresh_token: antwoord.refresh_token || (sessie && sessie.refresh_token) || '', verloopt: Date.now() + (Number(antwoord.expires_in) || 0) * 1000,
+    rechten: typeof antwoord.scope === 'string' && antwoord.scope ? antwoord.scope.slice(0, 600) : (sessie && typeof sessie.rechten === 'string' ? sessie.rechten : '?') };
   bewaar(K_SESSIE, JSON.stringify(sessie));
 }
 function vergeetSessie() { sessie = null; wis(K_SESSIE); }
@@ -529,12 +536,12 @@ function tekenDossiers() {
         const open = st.open === 's:' + i.id;
         h += '<li><button class="rij" type="button" data-stuk="' + esc(i.id) + '" aria-expanded="' + open + '"><span class="uur"></span><span class="titel">' + esc(i.naam) + '</span><span class="neven">' + esc(grootte(i.bytes)) + '</span><span class="onder zacht">gewijzigd ' + esc(mailTijd(i.gewijzigd, vandaagISO())) + '</span></button>';
         if (open) h += '<div class="uitklap">' + (k.lezen && k.lezen.id === i.id ? (k.lezen.url ? '<a class="knop goud" href="' + esc(k.lezen.url) + '" target="_blank" rel="noopener">Lezen</a>' : '<span class="neven">' + esc(k.lezen.fout ? foutTekst(k.lezen.fout) : 'Stuk wordt klaargezet…') + '</span>') : '')
-          + (i.link ? '<a class="knop stil" href="' + esc(i.link) + '" target="_blank" rel="noopener">Openen in OneDrive</a>' : '') + '</div>';
+          + (i.link ? '<a class="knop stil" href="' + esc(i.link) + '" target="_blank" rel="noopener">Openen in Microsoft 365</a>' : '') + '</div>';
         h += '</li>';
       }
       h += '</ul>';
     }
-    if (veiligeUrl(hier.link)) h += '<div class="uitklap los"><a class="knop stil maplink" href="' + esc(hier.link) + '" target="_blank" rel="noopener">Map openen in OneDrive</a></div>';
+    if (veiligeUrl(hier.link)) h += '<div class="uitklap los"><a class="knop stil maplink" href="' + esc(hier.link) + '" target="_blank" rel="noopener">Map openen in Microsoft 365</a></div>';
     el.innerHTML = h; return;
   }
   const d = st.dossiers;
@@ -557,6 +564,8 @@ async function laad(deel, werk) {
   catch (e) { if (behandel(e)) return; deel.fout = e; if (e.soort === 'verbod') deel.items = null; }
   teken();
 }
+/* De schijf met de dossiers: de bibliotheek van het kantoor wanneer config.json ze noemt, anders de eigen OneDrive (de plaats van voor 05.10.2026). */
+const schijf = () => DOSSIERSCHIJF ? '/drives/' + encodeURIComponent(DOSSIERSCHIJF) : '/me/drive';
 const MAILVELDEN = 'id,subject,from,toRecipients,receivedDateTime,sentDateTime,bodyPreview,hasAttachments,isRead,webLink';
 function laadAlles() {
   const vandaag = vandaagISO();
@@ -583,9 +592,9 @@ function laadAlles() {
   });
   laad(st.dossiers, async () => {
     const pad = DOSSIERPAD.split('/').map(encodeURIComponent).join('/');
-    const jaren = (await alle('/me/drive/root:/' + pad + ':/children' + vraag({ $select: 'id,name,folder', $top: 200 }), null, 3)).filter(m => m.folder && /\d{4}-\d{4}/.test(m.name || ''));
+    const jaren = (await alle((DOSSIERSCHIJF ? schijf() + '/root/children' : '/me/drive/root:/' + pad + ':/children') + vraag({ $select: 'id,name,folder', $top: 200 }), null, 3)).filter(m => m.folder && /\d{4}-\d{4}/.test(m.name || ''));
     const per = await Promise.all(jaren.map(async j => { const jaar = /(\d{4}-\d{4})/.exec(j.name)[1];
-      return (await alle('/me/drive/items/' + encodeURIComponent(j.id) + '/children' + vraag({ $select: 'id,name,folder,webUrl', $top: 200 }), null, 6)).filter(m => m.folder && codeVan(m.name || '')).map(m => ({ id: String(m.id), naam: m.name, code: codeVan(m.name), jaar, link: veiligeUrl(m.webUrl) })); }));
+      return (await alle(schijf() + '/items/' + encodeURIComponent(j.id) + '/children' + vraag({ $select: 'id,name,folder,webUrl', $top: 200 }), null, 6)).filter(m => m.folder && codeVan(m.name || '')).map(m => ({ id: String(m.id), naam: m.name, code: codeVan(m.name), jaar, link: veiligeUrl(m.webUrl) })); }));
     return [].concat.apply([], per);
   });
   graph('/me' + vraag({ $select: 'displayName,userPrincipalName' })).then(j => { st.ik = j; $('#wie').textContent = 'Aangemeld als ' + (j.displayName || j.userPrincipalName || ''); }, () => { /* de naam is bijzaak */ });
@@ -614,7 +623,7 @@ async function leesMail(id) {
 async function leesMap() {
   const k = st.dossier; const hier = k.pad[k.pad.length - 1];
   try {
-    const items = await alle('/me/drive/items/' + encodeURIComponent(hier.id) + '/children' + vraag({ $select: 'id,name,folder,file,size,webUrl,lastModifiedDateTime', $top: 200 }), null, 6);
+    const items = await alle(schijf() + '/items/' + encodeURIComponent(hier.id) + '/children' + vraag({ $select: 'id,name,folder,file,size,webUrl,lastModifiedDateTime', $top: 200 }), null, 6);
     if (st.dossier !== k) return;
     k.items = items.map(i => ({ id: String(i.id), naam: i.name || '', map: !!i.folder, bytes: i.size, link: veiligeUrl(i.webUrl), gewijzigd: i.lastModifiedDateTime || '' })).sort((a, b) => a.map === b.map ? a.naam.localeCompare(b.naam, 'nl', { sensitivity: 'base', numeric: true }) : a.map ? -1 : 1);
     k.bezig = false; k.fout = null;
@@ -626,7 +635,7 @@ async function openStuk(id) {
   const k = st.dossier; if (!k) return;
   if (st.open === 's:' + id) { st.open = null; tekenDossiers(); return; }
   st.open = 's:' + id; k.lezen = { id }; tekenDossiers();
-  try { const j = await graph('/me/drive/items/' + encodeURIComponent(id) + vraag({ select: 'id,name,@microsoft.graph.downloadUrl' })); if (st.dossier !== k || !k.lezen || k.lezen.id !== id) return; k.lezen.url = veiligeUrl(j['@microsoft.graph.downloadUrl']); if (!k.lezen.url) k.lezen.fout = { soort: 'nietgevonden' }; }
+  try { const j = await graph(schijf() + '/items/' + encodeURIComponent(id) + vraag({ select: 'id,name,@microsoft.graph.downloadUrl' })); if (st.dossier !== k || !k.lezen || k.lezen.id !== id) return; k.lezen.url = veiligeUrl(j['@microsoft.graph.downloadUrl']); if (!k.lezen.url) k.lezen.fout = { soort: 'nietgevonden' }; }
   catch (e) { if (behandel(e)) return; if (st.dossier !== k || !k.lezen || k.lezen.id !== id) return; k.lezen.fout = e; }
   tekenDossiers();
 }
@@ -676,6 +685,8 @@ document.addEventListener('visibilitychange', () => { if (!document.hidden && se
   const melding = gekoppeld ? await verwerkTerugkeer() : null;
   if (!sessie) sessie = leesSessie();
   if (melding || !sessie || !gekoppeld) { toonAanmelden(melding); return; }
+  /* Een sessie van voor versie 1.1 kent het overzicht van rechten niet en heeft het leesrecht op de bibliotheek van het kantoor niet: een keer opnieuw aanmelden. */
+  if (typeof sessie.rechten !== 'string') { toonAanmelden('Deze versie leest de dossiers uit de gedeelde bibliotheek van het kantoor en vraagt daarvoor \u00e9\u00e9n keer een nieuwe toestemming. Meld u opnieuw aan.'); return; }
   toonApp();
 })();
 })();
